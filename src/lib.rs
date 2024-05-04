@@ -25,7 +25,6 @@ use agb::{
 };
 use alloc::vec::Vec;
 use resources::{BIG_ROCKS, BULLET, SHIP, SHIP_BOOST, SMALL_ROCKS};
-use slotmap::{DefaultKey, SlotMap};
 
 type Number = Num<i32, 8>;
 type Vector = Vector2D<Number>;
@@ -169,7 +168,7 @@ fn screen_wrap(v: Vector, size: i32) -> Vector {
     )
 }
 
-type Map<T> = SlotMap<DefaultKey, T>;
+type Map<T> = Vec<T>;
 
 struct RockSpawner {
     rng: RandomNumberGenerator,
@@ -210,7 +209,7 @@ impl RockSpawner {
                 angular_velocity: Number::from_raw(self.rng.gen()) % (Number::new(1) / 50),
             };
 
-            rocks.insert(new_rock);
+            rocks.push(new_rock);
         }
     }
 }
@@ -274,7 +273,7 @@ impl BulletSpawner {
             return;
         }
 
-        bullets.insert(Bullet {
+        bullets.push(Bullet {
             position,
             velocity: velocity + angle_unit_vector * 4,
             inside_ship: true,
@@ -330,13 +329,13 @@ impl Game {
     fn prepare_objects(&self, loader: &mut SpriteLoader) -> Vec<ObjectUnmanaged> {
         let mut objects = Vec::new();
         objects.extend(self.player_ship.iter().map(|ship| ship.object(loader)));
-        objects.extend(self.rocks.iter().map(|(_, rock)| rock.object(loader)));
+        objects.extend(self.rocks.iter().map(|rock| rock.object(loader)));
         objects.extend(
             self.particles
                 .iter()
-                .flat_map(|(_, particles)| particles.object(loader)),
+                .flat_map(|particles| particles.object(loader)),
         );
-        objects.extend(self.bullets.iter().map(|(_, rock)| rock.object(loader)));
+        objects.extend(self.bullets.iter().map(|rock| rock.object(loader)));
 
         objects
     }
@@ -372,16 +371,16 @@ impl Game {
             ship.position += ship.velocity;
             ship.position = screen_wrap(ship.position, 16);
         }
-        for (_, rock) in self.rocks.iter_mut() {
+        for rock in self.rocks.iter_mut() {
             rock.position += rock.velocity;
             rock.angle += rock.angular_velocity;
             rock.position = screen_wrap(rock.position, 16);
         }
-        for (_, bullet) in self.bullets.iter_mut() {
+        for bullet in self.bullets.iter_mut() {
             bullet.position += bullet.velocity;
             bullet.position = screen_wrap(bullet.position, 4);
         }
-        for (_, particles) in self.particles.iter_mut() {
+        for particles in self.particles.iter_mut() {
             for dust in particles.parts.iter_mut() {
                 dust.position += dust.velocity;
                 dust.position = screen_wrap(dust.position, 8);
@@ -394,9 +393,9 @@ impl Game {
         self.spawner.spawn_rock(&mut self.rocks);
     }
     fn destroy_rocks(&mut self) {
-        self.rocks.retain(|_, rock| {
+        self.rocks.retain(|rock| {
             let mut should_destroy = false;
-            self.bullets.retain(|_, bullet| {
+            self.bullets.retain(|bullet| {
                 let collision = point_collision(rock.position, bullet.position, 8.into(), 2.into());
                 should_destroy |= collision;
                 !collision
@@ -404,7 +403,7 @@ impl Game {
 
             if should_destroy {
                 self.particles
-                    .insert(self.particle_spawner.spawn(rock.velocity, rock.position));
+                    .push(self.particle_spawner.spawn(rock.velocity, rock.position));
             }
 
             !should_destroy
@@ -413,7 +412,7 @@ impl Game {
     fn bullet_destroy_player(&mut self) {
         self.player_ship.retain(|ship| {
             let mut should_destroy = false;
-            self.bullets.retain(|_, bullet| {
+            self.bullets.retain(|bullet| {
                 // bullet hasn't yet left the ship, therefore it cannot destroy it yet
                 if bullet.inside_ship {
                     return true;
@@ -425,7 +424,7 @@ impl Game {
 
             if should_destroy {
                 self.particles
-                    .insert(self.particle_spawner.spawn(ship.velocity, ship.position));
+                    .push(self.particle_spawner.spawn(ship.velocity, ship.position));
             }
 
             !should_destroy
@@ -434,7 +433,7 @@ impl Game {
     fn rock_destroy_player(&mut self) {
         self.player_ship.retain(|ship| {
             let mut should_destroy = false;
-            self.rocks.retain(|_, rock| {
+            self.rocks.retain(|rock| {
                 let collision = point_collision(ship.position, rock.position, 8.into(), 8.into());
                 should_destroy |= collision;
                 !collision
@@ -442,7 +441,7 @@ impl Game {
 
             if should_destroy {
                 self.particles
-                    .insert(self.particle_spawner.spawn(ship.velocity, ship.position));
+                    .push(self.particle_spawner.spawn(ship.velocity, ship.position));
             }
 
             !should_destroy
@@ -450,7 +449,7 @@ impl Game {
     }
 
     fn bullets_left_player(&mut self) {
-        for (_, bullet) in self.bullets.iter_mut() {
+        for bullet in self.bullets.iter_mut() {
             if self
                 .player_ship
                 .iter()
@@ -462,7 +461,7 @@ impl Game {
     }
 
     fn clean_particles(&mut self) {
-        self.particles.retain(|_, k| {
+        self.particles.retain_mut(|k| {
             k.frames_to_live -= 1;
             k.frames_to_live >= 0
         })

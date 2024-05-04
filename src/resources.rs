@@ -1,5 +1,5 @@
 use agb::{
-    display::object::{Graphics, Sprite, Tag},
+    display::object::{Graphics, Tag},
     include_aseprite,
 };
 

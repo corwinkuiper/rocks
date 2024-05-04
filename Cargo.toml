@@ -8,7 +8,6 @@ edition = "2021"
 
 [dependencies]
 agb = "0.19.1"
-slotmap = { version = "1", default-features = false }
 
 [profile.dev]
 opt-level = 3
