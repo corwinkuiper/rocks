@@ -32,6 +32,9 @@ type Vector = Vector2D<Number>;
 const FIRST_ROCK_SPAWN: u32 = 256;
 const ROCK_SPAWN_CADENCE: u32 = 256;
 
+const ROCK_LIMIT: usize = 6;
+const PARTICLE_LIMIT: usize = 32 - 1 - ROCK_LIMIT;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct Angle {
     angle: Number,
@@ -234,7 +237,11 @@ impl Default for ParticleSpawner {
 }
 
 impl ParticleSpawner {
-    fn spawn(&mut self, velocity: Vector, position: Vector) -> DustParticles {
+    fn spawn(&mut self, velocity: Vector, position: Vector, particles: &mut Map<DustParticles>) {
+        if particles.len() >= PARTICLE_LIMIT {
+            return;
+        }
+
         #[allow(clippy::modulo_one)]
         let parts = [0; 4].map(|_| Dust {
             position,
@@ -247,14 +254,15 @@ impl ParticleSpawner {
             sprite: SMALL_ROCKS.animation_sprite(self.rng.gen() as usize),
         });
         #[allow(clippy::modulo_one)]
-        DustParticles {
+        let dust = DustParticles {
             parts,
             angle: Angle {
                 angle: Number::from_raw(self.rng.gen()) % 1,
             },
             angular_velocity: Number::from_raw(self.rng.gen()) % (Number::new(1) / 50),
             frames_to_live: 120,
-        }
+        };
+        particles.push(dust);
     }
 }
 
@@ -279,6 +287,10 @@ impl BulletSpawner {
             inside_ship: true,
         });
     }
+}
+
+fn dot_product(a: Vector, b: Vector) -> Number {
+    a.x * b.x + a.y * b.y
 }
 
 struct Game {
@@ -402,8 +414,8 @@ impl Game {
             });
 
             if should_destroy {
-                self.particles
-                    .push(self.particle_spawner.spawn(rock.velocity, rock.position));
+                self.particle_spawner
+                    .spawn(rock.velocity, rock.position, &mut self.particles);
             }
 
             !should_destroy
@@ -423,8 +435,8 @@ impl Game {
             });
 
             if should_destroy {
-                self.particles
-                    .push(self.particle_spawner.spawn(ship.velocity, ship.position));
+                self.particle_spawner
+                    .spawn(ship.velocity, ship.position, &mut self.particles);
             }
 
             !should_destroy
@@ -440,8 +452,8 @@ impl Game {
             });
 
             if should_destroy {
-                self.particles
-                    .push(self.particle_spawner.spawn(ship.velocity, ship.position));
+                self.particle_spawner
+                    .spawn(ship.velocity, ship.position, &mut self.particles);
             }
 
             !should_destroy
@@ -460,6 +472,33 @@ impl Game {
         }
     }
 
+    fn rock_shared_collision(&mut self) {
+        let mut colliding_rock_pairs = Vec::new();
+        for (idx, rock) in self.rocks.iter().enumerate() {
+            for (other_idx, other_rock) in self.rocks.iter().enumerate().skip(idx + 1) {
+                if point_collision(rock.position, other_rock.position, 8.into(), 8.into()) {
+                    colliding_rock_pairs.push((idx, other_idx));
+                }
+            }
+        }
+
+        for (a, b) in colliding_rock_pairs {
+            let v1 = self.rocks[a].velocity;
+            let x1 = self.rocks[a].position;
+
+            let v2 = self.rocks[b].velocity;
+            let x2 = self.rocks[b].position;
+
+            let v1prime =
+                v1 - (x1 - x2) * dot_product(v1 - v2, x1 - x2) / (x1 - x2).magnitude_squared();
+            let v2prime =
+                v2 - (x2 - x1) * dot_product(v2 - v1, x2 - x1) / (x2 - x1).magnitude_squared();
+
+            self.rocks[a].velocity = v1prime;
+            self.rocks[b].velocity = v2prime;
+        }
+    }
+
     fn clean_particles(&mut self) {
         self.particles.retain_mut(|k| {
             k.frames_to_live -= 1;
@@ -474,6 +513,7 @@ impl Game {
         self.bullet_destroy_player();
         self.bullets_left_player();
         self.rock_destroy_player();
+        self.rock_shared_collision();
         self.clean_particles();
         self.update_positions();
     }
