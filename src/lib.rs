@@ -35,6 +35,8 @@ const ROCK_SPAWN_CADENCE: u32 = 256;
 const ROCK_LIMIT: usize = 6;
 const PARTICLE_LIMIT: usize = 32 - 1 - ROCK_LIMIT;
 
+const BACKGROUND_COLOUR: u16 = 0x423;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct Angle {
     angle: Number,
@@ -544,6 +546,8 @@ fn play_game(loader: &mut SpriteLoader, oam: &mut OamUnmanaged) {
 
 pub fn entry(mut gba: agb::Gba) -> ! {
     let (mut oam, mut loader) = gba.display.object.get_unmanaged();
+    let (_, mut vram) = gba.display.video.tiled0();
+    vram.set_background_palette_colour(0, 0, BACKGROUND_COLOUR);
     loop {
         play_game(&mut loader, &mut oam);
     }
