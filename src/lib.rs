@@ -192,7 +192,7 @@ impl Default for RockSpawner {
 impl RockSpawner {
     fn spawn_rock(&mut self, rocks: &mut Map<Rock>) {
         self.time_to_next_rock = self.time_to_next_rock.saturating_sub(1);
-        if rocks.len() > 6 {
+        if rocks.len() > ROCK_LIMIT {
             return;
         }
 
