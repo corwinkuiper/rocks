@@ -35,6 +35,9 @@ const ROCK_SPAWN_CADENCE: u32 = 256;
 const ROCK_LIMIT: usize = 6;
 const PARTICLE_LIMIT: usize = 32 - 1 - ROCK_LIMIT;
 
+const ROCK_BULLET_MASS_RATIO_SHIFT: i32 = 3;
+const SHIP_BULLET_MASS_RATIO_SHIFT: i32 = 3;
+
 const BACKGROUND_COLOUR: u16 = 0x423;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -305,14 +308,14 @@ struct Game {
     bullet_spawner: BulletSpawner,
 }
 
-trait OptionRetain<T> {
-    fn retain<F>(&mut self, f: F)
+trait RetainExtension<T> {
+    fn retain_mut<F>(&mut self, f: F)
     where
         F: FnMut(&mut T) -> bool;
 }
 
-impl<T> OptionRetain<T> for Option<T> {
-    fn retain<F>(&mut self, f: F)
+impl<T> RetainExtension<T> for Option<T> {
+    fn retain_mut<F>(&mut self, f: F)
     where
         F: FnMut(&mut T) -> bool,
     {
@@ -407,48 +410,61 @@ impl Game {
         self.spawner.spawn_rock(&mut self.rocks);
     }
     fn destroy_rocks(&mut self) {
-        self.rocks.retain(|rock| {
-            let mut should_destroy = false;
+        self.rocks.retain_mut(|rock| {
+            let mut should_destroy: Option<Vector> = None;
             self.bullets.retain(|bullet| {
                 let collision = point_collision(rock.position, bullet.position, 8.into(), 2.into());
-                should_destroy |= collision;
+                if collision {
+                    should_destroy = Some(should_destroy.unwrap_or_default() + bullet.velocity);
+                }
                 !collision
             });
 
-            if should_destroy {
-                self.particle_spawner
-                    .spawn(rock.velocity, rock.position, &mut self.particles);
+            if let Some(bullet_velocity) = should_destroy {
+                self.particle_spawner.spawn(
+                    rock.velocity + (bullet_velocity / (1 << ROCK_BULLET_MASS_RATIO_SHIFT)),
+                    rock.position,
+                    &mut self.particles,
+                );
             }
-
-            !should_destroy
+            should_destroy.is_none()
         });
     }
     fn bullet_destroy_player(&mut self) {
-        self.player_ship.retain(|ship| {
-            let mut should_destroy = false;
+        self.player_ship.retain_mut(|ship| {
+            let mut should_destroy: Option<Vector> = None;
             self.bullets.retain(|bullet| {
                 // bullet hasn't yet left the ship, therefore it cannot destroy it yet
                 if bullet.inside_ship {
                     return true;
                 }
                 let collision = point_collision(ship.position, bullet.position, 8.into(), 2.into());
-                should_destroy |= collision;
+                if collision {
+                    should_destroy = Some(should_destroy.unwrap_or_default() + bullet.velocity);
+                }
                 !collision
             });
 
-            if should_destroy {
-                self.particle_spawner
-                    .spawn(ship.velocity, ship.position, &mut self.particles);
+            if let Some(bullet_velocity) = should_destroy {
+                self.particle_spawner.spawn(
+                    ship.velocity + (bullet_velocity / (1 << SHIP_BULLET_MASS_RATIO_SHIFT)),
+                    ship.position,
+                    &mut self.particles,
+                );
             }
 
-            !should_destroy
+            should_destroy.is_none()
         });
     }
     fn rock_destroy_player(&mut self) {
-        self.player_ship.retain(|ship| {
+        self.player_ship.retain_mut(|ship| {
             let mut should_destroy = false;
             self.rocks.retain(|rock| {
                 let collision = point_collision(ship.position, rock.position, 8.into(), 8.into());
+                if collision {
+                    self.particle_spawner
+                        .spawn(rock.velocity, rock.position, &mut self.particles);
+                }
                 should_destroy |= collision;
                 !collision
             });
@@ -464,6 +480,9 @@ impl Game {
 
     fn bullets_left_player(&mut self) {
         for bullet in self.bullets.iter_mut() {
+            if !bullet.inside_ship {
+                continue;
+            }
             if self
                 .player_ship
                 .iter()
