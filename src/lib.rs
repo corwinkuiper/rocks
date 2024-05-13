@@ -19,21 +19,24 @@ use agb::{
         },
         HEIGHT, WIDTH,
     },
-    fixnum::{Num, Vector2D},
+    fixnum::{num, Num, Vector2D},
     input::{Button, ButtonController},
     rng::RandomNumberGenerator,
 };
 use alloc::vec::Vec;
-use resources::{BIG_ROCKS, BULLET, SHIP, SHIP_BOOST, SMALL_ROCKS};
+use resources::{BIG_ROCKS, BULLET, SHIP, SHIP_BOOST, SHIP_PARTS, SMALL_ROCKS};
 
-type Number = Num<i32, 8>;
+type Number = Num<i32, 10>;
 type Vector = Vector2D<Number>;
 
 const FIRST_ROCK_SPAWN: u32 = 256;
 const ROCK_SPAWN_CADENCE: u32 = 256;
 
 const ROCK_LIMIT: usize = 6;
-const PARTICLE_LIMIT: usize = 32 - 1 - ROCK_LIMIT;
+const SHIP_PART_LIMIT: usize = 3;
+const SHIP_LIMIT: usize = 1;
+const AFFINE_MATRIX_LIMIT: usize = 32;
+const PARTICLE_LIMIT: usize = AFFINE_MATRIX_LIMIT - SHIP_LIMIT - ROCK_LIMIT - SHIP_PART_LIMIT;
 
 const ROCK_BULLET_MASS_RATIO_SHIFT: i32 = 3;
 const SHIP_BULLET_MASS_RATIO_SHIFT: i32 = 3;
@@ -69,6 +72,7 @@ struct Ship {
     position: Vector,
     velocity: Vector,
     sprite: &'static Sprite,
+    angular_velocity: Number,
     angle: Angle,
 }
 
@@ -132,13 +136,34 @@ struct DustParticles {
     frames_to_live: i32,
 }
 
+#[derive(Clone)]
+struct ShipParticle {
+    sprite: &'static Sprite,
+    angle: Angle,
+    angular_velocity: Number,
+    velocity: Vector,
+    position: Vector,
+}
+
+impl ShipParticle {
+    fn object(&self, loader: &mut SpriteLoader) -> ObjectUnmanaged {
+        let sprite = loader.get_vram_sprite(self.sprite);
+        let mut object = ObjectUnmanaged::new(sprite);
+        object
+            .set_affine_matrix(self.angle.matrix_instance())
+            .set_position((self.position - (8, 8).into()).floor())
+            .show_affine(AffineMode::Affine);
+        object
+    }
+}
+
 const DUST_TTL: i32 = 120;
 
 impl DustParticles {
     fn object(&self, loader: &mut SpriteLoader) -> [ObjectUnmanaged; 4] {
         let scale = Number::new(DUST_TTL) / self.frames_to_live.max(1);
-        let matrix =
-            self.angle.transformation_matrix() * AffineMatrix::from_scale((scale, scale).into());
+        let matrix = self.angle.transformation_matrix()
+            * AffineMatrix::from_scale((scale.change_base(), scale.change_base()).into());
         let instance = AffineMatrixInstance::new(matrix.to_object_wrapping());
         self.parts
             .each_ref()
@@ -269,6 +294,49 @@ impl ParticleSpawner {
         };
         particles.push(dust);
     }
+
+    fn spawn_ship(
+        &mut self,
+        position: Vector,
+        velocity: Vector,
+        angle: Angle,
+        angular_velocity: Number,
+        particles: &mut Map<ShipParticle>,
+    ) {
+        const PARTS: [&Sprite; 3] = [
+            SHIP_PARTS.sprite(0),
+            SHIP_PARTS.sprite(1),
+            SHIP_PARTS.sprite(2),
+        ];
+
+        let perpendicular_unit_vector = Vector::new_from_angle(angle.angle + num!(0.25));
+
+        let mut create = |which: i32| {
+            let sprite: usize = (which + 1).try_into().expect("should be a sprite");
+            let position = position + perpendicular_unit_vector * 3 * which;
+            let velocity = velocity
+                + perpendicular_unit_vector * which
+                + (
+                    Number::from_raw(self.rng.gen()) % num!(0.25),
+                    Number::from_raw(self.rng.gen()) % num!(0.25),
+                )
+                    .into();
+
+            ShipParticle {
+                sprite: PARTS[sprite],
+                angle,
+                angular_velocity: angular_velocity
+                    + Number::new(which) / 32
+                    + Number::from_raw(self.rng.gen()) % (Number::new(1) / 128),
+                velocity,
+                position,
+            }
+        };
+
+        particles.push(create(-1));
+        particles.push(create(0));
+        particles.push(create(1));
+    }
 }
 
 #[derive(Default)]
@@ -304,6 +372,7 @@ struct Game {
     bullets: Map<Bullet>,
     rocks: Map<Rock>,
     particles: Map<DustParticles>,
+    ship_particles: Map<ShipParticle>,
     particle_spawner: ParticleSpawner,
     bullet_spawner: BulletSpawner,
 }
@@ -333,11 +402,13 @@ impl Game {
                 velocity: (0, 0).into(),
                 sprite: SHIP.sprite(0),
                 angle: Angle { angle: 0.into() },
+                angular_velocity: 0.into(),
             }),
             spawner: RockSpawner::default(),
             bullets: Map::new(),
             rocks: Map::new(),
             particles: Map::new(),
+            ship_particles: Map::new(),
             particle_spawner: ParticleSpawner::default(),
             bullet_spawner: BulletSpawner::default(),
         }
@@ -353,6 +424,7 @@ impl Game {
                 .flat_map(|particles| particles.object(loader)),
         );
         objects.extend(self.bullets.iter().map(|rock| rock.object(loader)));
+        objects.extend(self.ship_particles.iter().map(|ship| ship.object(loader)));
 
         objects
     }
@@ -362,6 +434,7 @@ impl Game {
         let angle_change: Number = angle_change.into();
         let angle_change = angle_change / 64;
         for ship in self.player_ship.iter_mut() {
+            ship.angular_velocity = angle_change;
             ship.angle += angle_change;
 
             let angle_vector = ship.angle.unit_vector();
@@ -403,6 +476,11 @@ impl Game {
                 dust.position = screen_wrap(dust.position, 8);
             }
             particles.angle += particles.angular_velocity;
+        }
+        for particle in self.ship_particles.iter_mut() {
+            particle.angle += particle.angular_velocity;
+            particle.position += particle.velocity;
+            particle.position = screen_wrap(particle.position, 16);
         }
     }
 
@@ -446,10 +524,15 @@ impl Game {
             });
 
             if let Some(bullet_velocity) = should_destroy {
-                self.particle_spawner.spawn(
-                    ship.velocity + (bullet_velocity / (1 << SHIP_BULLET_MASS_RATIO_SHIFT)),
+                let derived_velocity =
+                    ship.velocity + (bullet_velocity / (1 << SHIP_BULLET_MASS_RATIO_SHIFT));
+
+                self.particle_spawner.spawn_ship(
                     ship.position,
-                    &mut self.particles,
+                    derived_velocity,
+                    ship.angle,
+                    ship.angular_velocity,
+                    &mut self.ship_particles,
                 );
             }
 
@@ -470,8 +553,13 @@ impl Game {
             });
 
             if should_destroy {
-                self.particle_spawner
-                    .spawn(ship.velocity, ship.position, &mut self.particles);
+                self.particle_spawner.spawn_ship(
+                    ship.position,
+                    ship.velocity,
+                    ship.angle,
+                    ship.angular_velocity,
+                    &mut self.ship_particles,
+                );
             }
 
             !should_destroy

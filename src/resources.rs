@@ -17,3 +17,4 @@ pub const BULLET: &Tag = SPRITES.tags().get("BULLET");
 pub const BIG_ROCKS: &Tag = SPRITES.tags().get("BIG_ROCKS");
 pub const SMALL_ROCKS: &Tag = SPRITES.tags().get("SMALL_ROCKS");
 pub const NUMBERS: &Tag = SPRITES.tags().get("NUMBERS");
+pub const SHIP_PARTS: &Tag = SPRITES.tags().get("SHIP_PARTS");
