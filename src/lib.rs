@@ -303,7 +303,7 @@ impl ParticleSpawner {
         angular_velocity: Number,
         particles: &mut Map<ShipParticle>,
     ) {
-        const PARTS: [&Sprite; 3] = [
+        static PARTS: [&Sprite; 3] = [
             SHIP_PARTS.sprite(0),
             SHIP_PARTS.sprite(1),
             SHIP_PARTS.sprite(2),
