@@ -362,10 +362,6 @@ impl BulletSpawner {
     }
 }
 
-fn dot_product(a: Vector, b: Vector) -> Number {
-    a.x * b.x + a.y * b.y
-}
-
 struct Game {
     player_ship: Option<Ship>,
     spawner: RockSpawner,
@@ -598,10 +594,8 @@ impl Game {
             let v2 = self.rocks[b].velocity;
             let x2 = self.rocks[b].position;
 
-            let v1prime =
-                v1 - (x1 - x2) * dot_product(v1 - v2, x1 - x2) / (x1 - x2).magnitude_squared();
-            let v2prime =
-                v2 - (x2 - x1) * dot_product(v2 - v1, x2 - x1) / (x2 - x1).magnitude_squared();
+            let v1prime = v1 - (x1 - x2) * (v1 - v2).dot(x1 - x2) / (x1 - x2).magnitude_squared();
+            let v2prime = v2 - (x2 - x1) * (v2 - v1).dot(x2 - x1) / (x2 - x1).magnitude_squared();
 
             self.rocks[a].velocity = v1prime;
             self.rocks[b].velocity = v2prime;

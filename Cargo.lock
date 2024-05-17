@@ -10,9 +10,9 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
 name = "agb"
-version = "0.20.0"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b7bded0d99dd8ed5ecb7833ee0d1275a30cc0416d5e5fae6a77d4968f148617"
+checksum = "751bb0acb5a2e784ffe0b147f181d0ff2e02f30d25a289395ce4a088a39e6a39"
 dependencies = [
  "agb_fixnum",
  "agb_hashmap",
@@ -29,9 +29,9 @@ dependencies = [
 
 [[package]]
 name = "agb_fixnum"
-version = "0.20.0"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e51f15ca6378ca3a6f892db1f1b9689501a5089d0edf1dc7b6faaed9cedb0330"
+checksum = "4f4b8ba07eff5e777981ad808d9776c8d4514f2b9a8dff9db8c1466bce004964"
 dependencies = [
  "agb_macros",
  "num-traits",
@@ -39,18 +39,18 @@ dependencies = [
 
 [[package]]
 name = "agb_hashmap"
-version = "0.20.0"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0db161a7494a3cce046296304218ba4fad870340bb3d365834efdaccbbf059de"
+checksum = "9a3f63b67361bb7486400140a5c0299e30aabb8a08719c03f0b27fddb11c6a90"
 dependencies = [
  "rustc-hash",
 ]
 
 [[package]]
 name = "agb_image_converter"
-version = "0.20.0"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6166139e8d0470189b3a7e7971752f36a6db0029ccbcab97489cbb93c511933a"
+checksum = "8ed893974725ebb64089d42af0fdfec0e0736f6bf2222a4963f041dea1ff38e1"
 dependencies = [
  "asefile",
  "fontdue",
@@ -62,9 +62,9 @@ dependencies = [
 
 [[package]]
 name = "agb_macros"
-version = "0.20.0"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9daab648111b0d7f3079ead5d9aad2502c9c9454632791a91a4c4bd945238834"
+checksum = "5100ff1761d573d1a1838d19bc85815c9ec2fcb6cea6b2405e7f80c67b7df0cb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -73,9 +73,9 @@ dependencies = [
 
 [[package]]
 name = "agb_sound_converter"
-version = "0.20.0"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1246f1cb60bd992fff51e3fa2a7b6aeba572f1352ec9aee56127d10f329c607d"
+checksum = "47082703801966dba9cc2e370a5894871193fd35e0967d2d4242b5e0b939dacc"
 dependencies = [
  "hound",
  "proc-macro2",
