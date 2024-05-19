@@ -43,7 +43,7 @@ const SHIP_BULLET_MASS_RATIO_SHIFT: i32 = 3;
 
 const BACKGROUND_COLOUR: u16 = 0x423;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 struct Angle {
     angle: Number,
 }
@@ -57,6 +57,11 @@ impl Angle {
     }
     fn unit_vector(self) -> Vector {
         Vector::new_from_angle(self.angle)
+    }
+    fn from_random(rng: &mut RandomNumberGenerator) -> Self {
+        Angle {
+            angle: Number::from_raw(rng.gen()).rem_euclid(1.into()),
+        }
     }
 }
 
@@ -77,6 +82,21 @@ struct Ship {
 }
 
 impl Ship {
+    fn new() -> Ship {
+        let mut rng = rng_source();
+
+        Ship {
+            position: screen_wrap(
+                (Number::from_raw(rng.gen()), Number::from_raw(rng.gen())).into(),
+                0,
+            ),
+            velocity: (0, 0).into(),
+            sprite: SHIP.sprite(0),
+            angle: Angle::from_random(&mut rng),
+            angular_velocity: 0.into(),
+        }
+    }
+
     fn object(&self, loader: &mut SpriteLoader) -> ObjectUnmanaged {
         let sprite = loader.get_vram_sprite(self.sprite);
         let mut object = ObjectUnmanaged::new(sprite);
@@ -218,7 +238,7 @@ impl Default for RockSpawner {
 }
 
 impl RockSpawner {
-    fn spawn_rock(&mut self, rocks: &mut Map<Rock>) {
+    fn spawn_rock(&mut self, rocks: &mut Map<Rock>, ship_position: Vector) {
         self.time_to_next_rock = self.time_to_next_rock.saturating_sub(1);
         if rocks.len() > ROCK_LIMIT {
             return;
@@ -227,17 +247,25 @@ impl RockSpawner {
         if self.time_to_next_rock == 0 {
             self.time_to_next_rock = ROCK_SPAWN_CADENCE;
 
+            let spawn_position_randomness: Vector = (
+                Number::from_raw(self.rng.gen()) % 32,
+                Number::from_raw(self.rng.gen()) % 32,
+            )
+                .into();
+            let spawn_position = screen_wrap(
+                ship_position + (WIDTH / 2, HEIGHT / 2).into() + spawn_position_randomness,
+                0,
+            );
+
             #[allow(clippy::modulo_one)]
             let new_rock = Rock {
-                position: (WIDTH / 2, HEIGHT / 2).into(),
+                position: spawn_position,
                 velocity: (
                     Number::from_raw(self.rng.gen()) % 1,
                     Number::from_raw(self.rng.gen()) % 1,
                 )
                     .into(),
-                angle: Angle {
-                    angle: Number::from_raw(self.rng.gen()) % 1,
-                },
+                angle: Angle::from_random(&mut self.rng),
                 sprite: BIG_ROCKS.animation_sprite(self.rng.gen() as usize),
                 angular_velocity: Number::from_raw(self.rng.gen()) % (Number::new(1) / 50),
             };
@@ -286,9 +314,7 @@ impl ParticleSpawner {
         #[allow(clippy::modulo_one)]
         let dust = DustParticles {
             parts,
-            angle: Angle {
-                angle: Number::from_raw(self.rng.gen()) % 1,
-            },
+            angle: Angle::from_random(&mut self.rng),
             angular_velocity: Number::from_raw(self.rng.gen()) % (Number::new(1) / 50),
             frames_to_live: 120,
         };
@@ -393,13 +419,7 @@ impl<T> RetainExtension<T> for Option<T> {
 impl Game {
     fn new() -> Self {
         Self {
-            player_ship: Some(Ship {
-                position: (WIDTH / 2, HEIGHT / 2).into(),
-                velocity: (0, 0).into(),
-                sprite: SHIP.sprite(0),
-                angle: Angle { angle: 0.into() },
-                angular_velocity: 0.into(),
-            }),
+            player_ship: Some(Ship::new()),
             spawner: RockSpawner::default(),
             bullets: Map::new(),
             rocks: Map::new(),
@@ -481,7 +501,13 @@ impl Game {
     }
 
     fn generate_new_rocks(&mut self) {
-        self.spawner.spawn_rock(&mut self.rocks);
+        self.spawner.spawn_rock(
+            &mut self.rocks,
+            self.player_ship
+                .as_ref()
+                .map(|x| x.position)
+                .unwrap_or_default(),
+        );
     }
     fn destroy_rocks(&mut self) {
         self.rocks.retain_mut(|rock| {
