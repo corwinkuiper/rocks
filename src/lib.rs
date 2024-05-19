@@ -631,9 +631,11 @@ impl Game {
             let v1_prime = v1 - (x1 - x2) * (v1 - v2).dot(x1 - x2) / (x1 - x2).magnitude_squared();
             let v2_prime = v2 - (x2 - x1) * (v2 - v1).dot(x2 - x1) / (x2 - x1).magnitude_squared();
 
-            let x1_prime = x2 - derived_x1;
+            let x1_prime = (x1 + x2) / 2 - derived_x1 / 2;
+            let x2_prime = (x1 + x2) / 2 + derived_x1 / 2;
 
             self.rocks[a].position = x1_prime;
+            self.rocks[b].position = x2_prime;
             self.rocks[a].velocity = v1_prime;
             self.rocks[b].velocity = v2_prime;
         }
