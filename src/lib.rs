@@ -614,17 +614,28 @@ impl Game {
         }
 
         for (a, b) in colliding_rock_pairs {
+            let radius_1 = Number::new(8);
+            let radius_2 = Number::new(8);
+            let fudge = Number::new(1);
+
             let v1 = self.rocks[a].velocity;
             let x1 = self.rocks[a].position;
 
             let v2 = self.rocks[b].velocity;
             let x2 = self.rocks[b].position;
 
-            let v1prime = v1 - (x1 - x2) * (v1 - v2).dot(x1 - x2) / (x1 - x2).magnitude_squared();
-            let v2prime = v2 - (x2 - x1) * (v2 - v1).dot(x2 - x1) / (x2 - x1).magnitude_squared();
+            let r = x2 - x1;
 
-            self.rocks[a].velocity = v1prime;
-            self.rocks[b].velocity = v2prime;
+            let derived_x1 = r * (radius_1 + radius_2 + fudge) / r.fast_magnitude();
+
+            let v1_prime = v1 - (x1 - x2) * (v1 - v2).dot(x1 - x2) / (x1 - x2).magnitude_squared();
+            let v2_prime = v2 - (x2 - x1) * (v2 - v1).dot(x2 - x1) / (x2 - x1).magnitude_squared();
+
+            let x1_prime = x2 - derived_x1;
+
+            self.rocks[a].position = x1_prime;
+            self.rocks[a].velocity = v1_prime;
+            self.rocks[b].velocity = v2_prime;
         }
     }
 
